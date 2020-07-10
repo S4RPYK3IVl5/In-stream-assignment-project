@@ -1,10 +1,9 @@
 import model.CaseClasses.Events
+import utils._
+
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.streaming.{OutputMode, ProcessingTime}
-import spray.json._
-import DefaultJsonProtocol._
-import utils._
 
 object main {
   def main(args: Array[String]): Unit = {
@@ -25,17 +24,13 @@ object main {
       .load()
 
     val valueDs = dfStream.selectExpr("CAST(value AS STRING) as value")
-//      .map{
-//        case Row(value) => println(value);value.asInstanceOf[String].init
-//          .replace("[","").replace("]","").parseJson.convertTo[Events]
-//      }
       .map{
         case Row(value) =>
           value match {
             case str: String => parseString(str)
             case _ => Nil
           }
-      }.as[List[String]]
+      }.as[List[String]].filter(_.nonEmpty).map(a => Events(a(0).toLong, a(1).toInt, a(2), a(3)))
 
     val intermediateDf = valueDs.writeStream
       .outputMode(OutputMode.Update())

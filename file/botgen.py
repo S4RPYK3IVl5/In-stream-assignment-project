@@ -61,7 +61,7 @@ def writeAsJson(entry, fd=None):
 
 # Log generator for users & bots
 def generate_log(args, start_time):
-    BOT_TRANSITION_EVERY_SEC = 2
+    BOT_TRANSITION_EVERY_SEC = 3
 
     t1, t2 = start_time, start_time + timedelta(seconds=args.duration)
 
@@ -70,7 +70,7 @@ def generate_log(args, start_time):
         for uid in random.sample(users, args.freq):
             yield (t1, random_content_user(), user2ip(uid), random_action_user())
 
-        if (int(t1.timestamp()) % BOT_TRANSITION_EVERY_SEC == 0):
+        for i in range(BOT_TRANSITION_EVERY_SEC):
             for bid in range(0, args.bots):
                 yield (t1, random_content_bot(), bot2ip(bid), random_action_bot())
 

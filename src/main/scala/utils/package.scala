@@ -1,3 +1,5 @@
+import org.apache.spark.sql.Column
+
 package object utils {
 
   def parseString(str: String): List[String] = {

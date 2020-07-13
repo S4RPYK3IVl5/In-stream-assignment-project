@@ -1,5 +1,7 @@
 import java.sql.Timestamp
 
+import com.datastax.oss.protocol.internal.ProtocolConstants.ConsistencyLevel
+import com.datastax.spark.connector.CassandraSparkExtensions
 import com.redis.RedisClient
 import model.CaseClasses.Events
 import utils._
@@ -24,6 +26,10 @@ object main {
       .appName("bot-detection")
       .config("spark.redis.host", localhost)
       .config("spark.redis.port", "6379")
+      .config("spark.cassandra.connection.host", localhost)
+      .withExtensions(new CassandraSparkExtensions)
+      .config("spark.sql.catalog.mycatalog", "com.datastax.spark.connector.datasource.CassandraCatalog")
+      .config("spark.cassandra.output.consistency.level", "ONE")
       .getOrCreate()
 
     import sparkSession.implicits._
@@ -97,7 +103,7 @@ object main {
           .option("key.column", "ip")
           .load().toDF("rIp", "rEvent_sum", "rIndicator", "rCount_of_window", "rAdded_time")
 
-        val botsDf = ds.filter($"event_sum" > 20.0)
+        val botsDf = ds.filter($"event_sum" >= 20.0)
           .withColumn("added_time", current_timestamp().cast(LongType))
 
         val joinedDf = cachedBots.join(botsDf, $"rIp" === $"ip", "left")
@@ -112,6 +118,15 @@ object main {
           .option("table", "bot")
           .option("key.column", "ip")
           .mode(SaveMode.Append)
+          .save()
+
+        ds.withColumn("is_bot", $"event_sum" >= 20.0)
+          .withColumn("added_time", current_timestamp().cast(LongType))
+          .write
+          .format("org.apache.spark.sql.cassandra")
+          .option("keyspace", "event_click")
+          .option("table", "event")
+          .mode("APPEND")
           .save()
 
       }).start

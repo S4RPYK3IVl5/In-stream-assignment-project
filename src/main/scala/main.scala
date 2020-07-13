@@ -1,11 +1,12 @@
 import java.sql.Timestamp
 
+import com.redis.RedisClient
 import model.CaseClasses.Events
 import utils._
-import org.apache.spark.sql.{DataFrame, Row, SaveMode, SparkSession}
+import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.streaming.{OutputMode, ProcessingTime}
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types._
 
 object main {
 
@@ -14,7 +15,7 @@ object main {
   val pathToCSTFilesIntermediate = "/Users/asaprykin/Documents/lpProjects/In-stream-assignment-project/file/spark-output/intermediate"
   val pathToCSTFilesGroupedCheckpoint = "/Users/asaprykin/Documents/lpProjects/In-stream-assignment-project/file/checkpoint-location/grouped"
   val pathToCSTFilesGrouped = "/Users/asaprykin/Documents/lpProjects/In-stream-assignment-project/file/spark-output/grouped"
-
+  val redis = new RedisClient(localhost, 6379)
 
   def main(args: Array[String]): Unit = {
 
@@ -79,15 +80,42 @@ object main {
     ipWithIndicator.writeStream
       .outputMode(OutputMode.Update)
       .trigger(ProcessingTime("5 seconds"))
-      .foreachBatch((ds, _) =>
-        ds.write
+      .foreachBatch((ds, _) => {
+
+        val cachedBots = sparkSession.read
           .format("org.apache.spark.sql.redis")
-          .option("table", "bootsCache")
+          .schema(
+            StructType(Array(
+              StructField("ip", StringType),
+              StructField("event_sum", IntegerType),
+              StructField("indicator", DoubleType),
+              StructField("count_of_window", IntegerType),
+              StructField("added_time", LongType))
+            )
+          )
+          .option("keys.pattern", "bot:*")
+          .option("key.column", "ip")
+          .load().toDF("rIp", "rEvent_sum", "rIndicator", "rCount_of_window", "rAdded_time")
+
+        val botsDf = ds.filter($"event_sum" > 20.0)
+          .withColumn("added_time", current_timestamp().cast(LongType))
+
+        val joinedDf = cachedBots.join(botsDf, $"rIp" === $"ip", "left")
+
+        val whiteListedDf = joinedDf
+          .filter($"ip".isNull && (current_timestamp().cast(LongType) - $"rAdded_time") > 600)
+        if(!whiteListedDf.isEmpty) whiteListedDf
+          .foreach(row => redis.del(s"bot:${row.getAs[String]("rIp")}"))
+
+        botsDf.write
+          .format("org.apache.spark.sql.redis")
+          .option("table", "bot")
           .option("key.column", "ip")
           .mode(SaveMode.Append)
           .save()
-      )
-      .start
+
+      }).start
+
     sparkSession.streams.awaitAnyTermination()
 
   }

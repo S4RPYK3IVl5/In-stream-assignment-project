@@ -9,7 +9,7 @@ import org.apache.spark.sql.streaming.{OutputMode, ProcessingTime}
 import org.apache.spark.sql.types._
 import utils._
 
-object main {
+object sstream {
 
   val localhost = "127.0.0.1"
   val pathToCSTFilesIntermediateCheckpoint = "/Users/asaprykin/Documents/lpProjects/In-stream-assignment-project/file/checkpoint-location/intermediate"

@@ -10,5 +10,5 @@ libraryDependencies += "org.apache.spark" %% "spark-sql-kafka-0-10" % "2.4.4"
 libraryDependencies += "org.apache.spark" %% "spark-streaming" % "2.4.4"
 libraryDependencies += "com.redislabs" %% "spark-redis" % "2.4.2"
 libraryDependencies += "net.debasishg" %% "redisclient" % "3.30"
-
+libraryDependencies += "org.apache.spark" %% "spark-streaming-kafka-0-10" % "2.4.4"
 libraryDependencies += "com.datastax.spark" %% "spark-cassandra-connector" % "2.5.0"

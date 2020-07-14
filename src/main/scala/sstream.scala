@@ -110,40 +110,6 @@ object sstream {
 //          .save()
 //        ).start()
 
-    // Writing to Cassandra //
-    valueDs.writeStream
-      .outputMode(OutputMode.Update)
-      .trigger(ProcessingTime("5 seconds"))
-      .foreachBatch((ds, _) => {
-
-        val cachedBots = sparkSession.read
-          .format("org.apache.spark.sql.redis")
-          .schema(
-            StructType(Array(
-              StructField("ip", StringType),
-              StructField("event_sum", IntegerType),
-              StructField("indicator", DoubleType),
-              StructField("count_of_window", IntegerType),
-              StructField("added_time", LongType))
-            )
-          )
-          .option("keys.pattern", "bots:*")
-          .option("key.column", "ip")
-          .load().toDF("rIp", "rEvent_sum", "rIndicator", "rCount_of_window", "rAdded_time")
-
-        ds.join(cachedBots, ds("ip") === cachedBots("rIp"), "left")
-          .withColumn("is_bot", $"rIp".isNotNull)
-          .select($"ip", $"category_id", $"unix_time", $"type", $"is_bot")
-          .write
-          .format("org.apache.spark.sql.cassandra")
-          .option("keyspace", "event_click")
-          .option("table", "events")
-          .mode("APPEND")
-          .save()
-
-      }).start
-    // //
-
     // Writing to Redis //
     ipWithIndicator.writeStream
       .outputMode(OutputMode.Update)
@@ -180,6 +146,40 @@ object sstream {
           .option("table", "bots")
           .option("key.column", "ip")
           .mode(SaveMode.Append)
+          .save()
+
+      }).start
+    // //
+
+    // Writing to Cassandra //
+    valueDs.writeStream
+      .outputMode(OutputMode.Update)
+      .trigger(ProcessingTime("5 seconds"))
+      .foreachBatch((ds, _) => {
+
+        val cachedBots = sparkSession.read
+          .format("org.apache.spark.sql.redis")
+          .schema(
+            StructType(Array(
+              StructField("ip", StringType),
+              StructField("event_sum", IntegerType),
+              StructField("indicator", DoubleType),
+              StructField("count_of_window", IntegerType),
+              StructField("added_time", LongType))
+            )
+          )
+          .option("keys.pattern", "bots:*")
+          .option("key.column", "ip")
+          .load().toDF("rIp", "rEvent_sum", "rIndicator", "rCount_of_window", "rAdded_time")
+
+        ds.join(cachedBots, ds("ip") === cachedBots("rIp"), "left")
+          .withColumn("is_bot", $"rIp".isNotNull)
+          .select($"ip", $"category_id", $"unix_time", $"type", $"is_bot")
+          .write
+          .format("org.apache.spark.sql.cassandra")
+          .option("keyspace", "event_click")
+          .option("table", "events")
+          .mode("APPEND")
           .save()
 
       }).start

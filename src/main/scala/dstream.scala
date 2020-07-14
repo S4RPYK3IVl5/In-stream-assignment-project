@@ -1,20 +1,18 @@
 import java.sql.Timestamp
 
-import com.datastax.spark.connector
+import com.datastax.spark.connector._
 import com.redis.RedisClient
+import model.CaseClasses.Events
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.spark.SparkConf
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.streaming.kafka010.ConsumerStrategies.Subscribe
 import org.apache.spark.streaming.kafka010.KafkaUtils
 import org.apache.spark.streaming.kafka010.LocationStrategies.PreferConsistent
 import org.apache.spark.streaming.{Seconds, State, StateSpec, StreamingContext}
-import com.datastax.spark.connector._
-import model.CaseClasses.Events
-import org.apache.spark.sql.{SaveMode, SparkSession}
-import sstream.localhost
+import utils._
 
 import scala.collection.mutable.Map
-import utils._
 
 object dstream {
 

@@ -1,15 +1,21 @@
 import java.sql.Timestamp
 
-import model.CaseClasses._
+import com.redis.RedisClient
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.spark.SparkConf
+import org.apache.spark.streaming.kafka010.ConsumerStrategies.Subscribe
 import org.apache.spark.streaming.kafka010.KafkaUtils
 import org.apache.spark.streaming.kafka010.LocationStrategies.PreferConsistent
-import org.apache.spark.streaming.kafka010.ConsumerStrategies.Subscribe
 import org.apache.spark.streaming.{Seconds, State, StateSpec, StreamingContext}
+
+import scala.collection.mutable.Map
 import utils._
 
 object dstream {
+
+  val localhost = "127.0.0.1"
+  val redis = new RedisClient(localhost, 6379)
+
   def main(args: Array[String]): Unit = {
 
     val conf = new SparkConf().setMaster("local[2]").setAppName("NetworkWordCount")
@@ -46,8 +52,27 @@ object dstream {
       .filter(_.nonEmpty)
       .map(a => (createTriple(a(0).toDouble, a(2)), 1))
       .mapWithState(StateSpec.function(accumulateMappingFunction _))
-      .filter(x => x._1._3.equals("172.20.0.0"))
-      .foreachRDD(_.foreach(println(_)))
+      .foreachRDD(rdd => {
+        rdd.reduceByKey((x, y) => if (x > y) x else y)
+          .collect().foreach( value => {
+            val ip = value._1._3
+            val requests = value._2
+            val redisKey = "dbots:"+ip
+
+            if (requests > 20) {
+              println(ip + "      " + requests)
+              redis.hset(redisKey, "requests", requests)
+              redis.hset(redisKey, "added_time", System.currentTimeMillis()/1000)
+            } else {
+              println(ip + "      " + requests)
+              val added_time_optional = redis.hget(redisKey, "added_time")
+              added_time_optional.map(added_time => {
+                if (System.currentTimeMillis()/1000 - added_time.toLong > 600)
+                  redis.del(redisKey)
+              })
+            }
+          })
+      })
 
     ssc.start
     ssc.awaitTermination

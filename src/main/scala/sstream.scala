@@ -172,8 +172,8 @@ object sstream {
 
         val whiteListedDf = joinedDf
           .filter($"ip".isNull && (current_timestamp().cast(LongType) - $"rAdded_time") > 600)
-        if(!whiteListedDf.isEmpty) whiteListedDf
-          .foreach(row => redis.del(s"bots:${row.getAs[String]("rIp")}"))
+        if(!whiteListedDf.isEmpty)
+          whiteListedDf.foreach(row => redis.del(s"bots:${row.getAs[String]("rIp")}"))
 
         botsDf.write
           .format("org.apache.spark.sql.redis")

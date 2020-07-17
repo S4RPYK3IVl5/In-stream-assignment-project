@@ -82,6 +82,7 @@ object dstream {
           .format("org.apache.spark.sql.cassandra")
           .option("keyspace", "event_click")
           .option("table", "events_ds")
+          .option("spark.cassandra.output.consistency.level", "ONE")
           .mode("APPEND")
           .save()
 

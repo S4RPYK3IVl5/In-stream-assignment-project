@@ -1,3 +1,4 @@
+import java.lang
 import java.sql.Timestamp
 
 import com.datastax.spark.connector._
@@ -21,35 +22,7 @@ object dstream {
 
   def main(args: Array[String]): Unit = {
 
-    val conf = new SparkConf()
-      .setMaster("local[*]")
-      .setAppName("NetworkWordCount")
-
-    val ssc = new StreamingContext(conf, Seconds(5))
-    ssc.checkpoint("/Users/asaprykin/Documents/lpProjects/In-stream-assignment-project/file/checkpoint-location/dstream")
-
-    val sparkSession = SparkSession.builder()
-      .config(ssc.sparkContext.getConf)
-      .config("spark.cassandra.connection.host", localhost)
-      .withExtensions(new CassandraSparkExtensions)
-      .config("spark.sql.catalog.mycatalog", "com.datastax.spark.connector.datasource.CassandraCatalog")
-      .config("spark.cassandra.output.consistency.level", "ONE")
-      .getOrCreate()
-
-    val kafkaParam = Map[String, Object](
-      "bootstrap.servers" -> "127.0.0.1:9092",
-      "key.deserializer" -> classOf[StringDeserializer],
-      "value.deserializer" -> classOf[StringDeserializer],
-      "group.id" -> "DStream_group_1",
-      "auto.offset.reset" -> "latest",
-      "enable.auto.commit" -> (true: java.lang.Boolean)
-    )
-    val topics = Array("user-click-data")
-    val stream = KafkaUtils.createDirectStream[String, String](
-      ssc,
-      PreferConsistent,
-      Subscribe[String, String](topics, kafkaParam)
-    )
+    val (ssc, stream, sparkSession) = crateSparkEvironment
 
     def accumulateMappingFunction (key: (Timestamp, Timestamp, String),
                                    value: Option[(Events, Int)],
@@ -90,8 +63,7 @@ object dstream {
 
         sparkSession.createDataFrame(rdd.map(_._2._1).collect().map(event => {
           val optionBot = redis.hget("dbots:" + event.ip, "added_time")
-          (event.ip, event.category_id, event.unix_time, event.`type`,
-            if (optionBot.isDefined) true else false)
+          (event.ip, event.category_id, event.unix_time, event.`type`, optionBot.isDefined)
         })).toDF("ip", "category_id", "unix_time", "type", "is_bot").write
           .format("org.apache.spark.sql.cassandra")
           .option("keyspace", "event_click")
@@ -104,5 +76,38 @@ object dstream {
     ssc.start
     ssc.awaitTermination
 
+  }
+
+  private def crateSparkEvironment = {
+    val conf = new SparkConf()
+      .setMaster("local[*]")
+      .setAppName("NetworkWordCount")
+
+    val ssc = new StreamingContext(conf, Seconds(5))
+    ssc.checkpoint("/Users/asaprykin/Documents/lpProjects/In-stream-assignment-project/file/checkpoint-location/dstream")
+
+    val sparkSession = SparkSession.builder()
+      .config(ssc.sparkContext.getConf)
+      .config("spark.cassandra.connection.host", localhost)
+      .withExtensions(new CassandraSparkExtensions)
+      .config("spark.sql.catalog.mycatalog", "com.datastax.spark.connector.datasource.CassandraCatalog")
+      .config("spark.cassandra.output.consistency.level", "ONE")
+      .getOrCreate()
+
+    val kafkaParam = Map[String, Object](
+      "bootstrap.servers" -> "127.0.0.1:9092",
+      "key.deserializer" -> classOf[StringDeserializer],
+      "value.deserializer" -> classOf[StringDeserializer],
+      "group.id" -> "DStream_group_1",
+      "auto.offset.reset" -> "latest",
+      "enable.auto.commit" -> (true: lang.Boolean)
+    )
+    val topics = Array("user-click-data")
+    val stream = KafkaUtils.createDirectStream[String, String](
+      ssc,
+      PreferConsistent,
+      Subscribe[String, String](topics, kafkaParam)
+    )
+    (ssc, stream, sparkSession)
   }
 }

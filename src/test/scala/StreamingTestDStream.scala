@@ -62,8 +62,6 @@ class StreamingTestDStream extends AnyFlatSpec{
 
     assert(redis.hget("dbots:" + "172.20.0.0", "requests").isDefined)
 
-    main(Array())
-
   }
 
 }

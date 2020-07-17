@@ -50,10 +50,10 @@ class StreamingTestDStream extends AnyFlatSpec{
                |{"unix_time": 1594906471, "category_id": 1009, "ip": "172.20.0.0", "type": "click"}]""".stripMargin
 
   /*
-  * Hint 1: author of this test understand, that this test represent worst pattern of writing test,
+  * Hint: author of this test understand, that this test represent worst pattern of writing test,
   *  but it does what it has to do.
   */
-  "A bot" should "be found in Redis and Cassandra inside DStream" in {
+  "A bot" should "be found in Redis inside DStream" in {
 
     val (ssc, stream, sparkSession) = crateSparkEnvironment
 
@@ -72,18 +72,50 @@ class StreamingTestDStream extends AnyFlatSpec{
 
     new Thread(new Runnable {
       override def run(): Unit = {
-
         Thread.sleep(20000)
         closeStreaming(ssc)
 
         assert(redis.hget("dbots:" + "172.20.0.0", "requests").isDefined)
+      }
+    }).start()
+
+    ssc.start
+    ssc.awaitTermination
+
+  }
+
+  /*
+  * Hint: author of this test understand, that this test represent worst pattern of writing test,
+  *  but it does what it has to do.
+  */
+  "A bot" should "be found in Cassandra inside DStream" in {
+
+    val (ssc, stream, sparkSession) = crateSparkEnvironment
+
+    computingData(stream, sparkSession)
+
+    new Thread(new Runnable {
+      override def run(): Unit = {
+        Thread.sleep(5000)
+        val file = new File("file/data/data.json")
+        file.createNewFile()
+        val bw = new BufferedWriter(new FileWriter(file))
+        bw.write(data)
+        bw.close()
+      }
+    }).start()
+
+    new Thread(new Runnable {
+      override def run(): Unit = {
+        Thread.sleep(20000)
+        closeStreaming(ssc)
 
         val session = new CqlSessionBuilder().build()
         val rs = session
           .execute("SELECT * FROM event_click.events_ds WHERE is_bot=True ALLOW FILTERING;")
         val row = rs.one
         assert(row.getString("ip") === "172.20.0.0")
-
+        session.close()
       }
     }).start()
 

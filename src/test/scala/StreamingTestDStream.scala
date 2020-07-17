@@ -1,5 +1,6 @@
 import java.io.{BufferedWriter, File, FileWriter}
 
+import com.datastax.oss.driver.api.core.CqlSessionBuilder
 import dstream._
 import org.scalatest.flatspec.AnyFlatSpec
 
@@ -71,10 +72,18 @@ class StreamingTestDStream extends AnyFlatSpec{
 
     new Thread(new Runnable {
       override def run(): Unit = {
+
         Thread.sleep(20000)
         closeStreaming(ssc)
 
         assert(redis.hget("dbots:" + "172.20.0.0", "requests").isDefined)
+
+        val session = new CqlSessionBuilder().build()
+        val rs = session
+          .execute("SELECT * FROM event_click.events_ds WHERE is_bot=True ALLOW FILTERING;")
+        val row = rs.one
+        assert(row.getString("ip") === "172.20.0.0")
+
       }
     }).start()
 

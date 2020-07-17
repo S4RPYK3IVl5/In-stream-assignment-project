@@ -4,9 +4,11 @@ import java.sql.Timestamp
 import com.datastax.spark.connector._
 import com.redis.RedisClient
 import model.CaseClasses.Events
+import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.streaming.dstream.InputDStream
 import org.apache.spark.streaming.kafka010.ConsumerStrategies.Subscribe
 import org.apache.spark.streaming.kafka010.KafkaUtils
 import org.apache.spark.streaming.kafka010.LocationStrategies.PreferConsistent
@@ -22,11 +24,23 @@ object dstream {
 
   def main(args: Array[String]): Unit = {
 
-    val (ssc, stream, sparkSession) = crateSparkEvironment
+    val (ssc, stream, sparkSession) = crateSparkEnvironment
 
-    def accumulateMappingFunction (key: (Timestamp, Timestamp, String),
-                                   value: Option[(Events, Int)],
-                                   state: State[Int]): ((Timestamp, Timestamp, String), (Events, Int))  = {
+    computingData(stream, sparkSession)
+
+    ssc.start
+    ssc.awaitTermination
+
+  }
+
+  def closeStreaming(ssc: StreamingContext): Unit = {
+    ssc.stop(true, true)
+  }
+
+  def computingData(stream: InputDStream[ConsumerRecord[String, String]], sparkSession: SparkSession) = {
+    def accumulateMappingFunction(key: (Timestamp, Timestamp, String),
+                                  value: Option[(Events, Int)],
+                                  state: State[Int]): ((Timestamp, Timestamp, String), (Events, Int)) = {
       value match {
         case Some(x) => state.update(state.getOption().getOrElse(0) + x._2); (key, (x._1, state.get))
         case None => (key, (Events(new Timestamp(0), 0, "", ""), 0))
@@ -44,18 +58,18 @@ object dstream {
       .foreachRDD(rdd => {
 
         rdd.reduceByKey((x, y) => if (x._2 > y._2) x else y)
-          .collect().foreach( value => {
+          .collect().foreach(value => {
           val ip = value._1._3
           val requests = value._2._2
-          val redisKey = "dbots:"+ip
+          val redisKey = "dbots:" + ip
 
           if (requests > 20) {
             redis.hset(redisKey, "requests", requests)
-            redis.hset(redisKey, "added_time", System.currentTimeMillis()/1000)
+            redis.hset(redisKey, "added_time", System.currentTimeMillis() / 1000)
           } else {
             val added_time_optional = redis.hget(redisKey, "added_time")
             added_time_optional.map(added_time => {
-              if (System.currentTimeMillis()/1000 - added_time.toLong > 600)
+              if (System.currentTimeMillis() / 1000 - added_time.toLong > 600)
                 redis.del(redisKey)
             })
           }
@@ -72,13 +86,9 @@ object dstream {
           .save()
 
       })
-
-    ssc.start
-    ssc.awaitTermination
-
   }
 
-  private def crateSparkEvironment = {
+  def crateSparkEnvironment = {
     val conf = new SparkConf()
       .setMaster("local[*]")
       .setAppName("NetworkWordCount")

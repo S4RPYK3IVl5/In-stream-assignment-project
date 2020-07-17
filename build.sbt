@@ -12,3 +12,7 @@ libraryDependencies += "com.redislabs" %% "spark-redis" % "2.4.2"
 libraryDependencies += "net.debasishg" %% "redisclient" % "3.30"
 libraryDependencies += "org.apache.spark" %% "spark-streaming-kafka-0-10" % "2.4.4"
 libraryDependencies += "com.datastax.spark" %% "spark-cassandra-connector" % "2.5.0"
+
+libraryDependencies += "org.scalaj" %% "scalaj-http" % "2.4.2"
+libraryDependencies += "org.jfarcand" % "wcs" % "1.5"
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.0" % "test"

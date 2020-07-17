@@ -16,9 +16,9 @@ package object utils {
     val floor = (timestamp/10).floor
     val ceil = (timestamp/10).ceil
     if (floor == ceil)
-      (new Timestamp((floor*10000).toLong), new Timestamp(((ceil+1)*10000).toLong), ip)
+      (new Timestamp((floor*10000).toLong), new Timestamp(((ceil+0.9)*10000).toLong), ip)
     else
-      (new Timestamp((floor*10000).toLong), new Timestamp((ceil*10000).toLong), ip)
+      (new Timestamp((floor*10000).toLong), new Timestamp(((ceil-0.1)*10000).toLong), ip)
   }
 
 }

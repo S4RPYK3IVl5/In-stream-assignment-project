@@ -1,9 +1,7 @@
 import java.io.{BufferedWriter, File, FileWriter}
 
-import org.scalatest.flatspec.AnyFlatSpec
 import dstream._
-
-import scala.tools.nsc.classpath.FileUtils
+import org.scalatest.flatspec.AnyFlatSpec
 
 class StreamingTestDStream extends AnyFlatSpec{
 
@@ -47,9 +45,13 @@ class StreamingTestDStream extends AnyFlatSpec{
                |{"unix_time": 1594906469, "category_id": 1002, "ip": "172.10.0.2", "type": "view"},
                |{"unix_time": 1594906469, "category_id": 1000, "ip": "172.20.0.0", "type": "click"},
                |{"unix_time": 1594906470, "category_id": 1007, "ip": "172.20.0.0", "type": "click"},
-               |{"unix_time": 1594906470, "category_id": 1009, "ip": "172.20.0.0", "type": "click"}]
+               |{"unix_time": 1594906470, "category_id": 1009, "ip": "172.20.0.0", "type": "click"},
                |{"unix_time": 1594906471, "category_id": 1009, "ip": "172.20.0.0", "type": "click"}]""".stripMargin
 
+  /*
+  * Hint 1: If you will run this test with "Run button" in IntelliJ, it will not work,
+  *  because Spark Config will not take entire properties. Run it from sbt shell
+  */
   "A bot" should "be found in Redis and Cassandra inside DStream" in {
 
     val file = new File("file/data/data.json")
@@ -58,17 +60,9 @@ class StreamingTestDStream extends AnyFlatSpec{
     bw.write(data)
     bw.close()
 
-    val (ssc, stream, sparkSession) = createSparkEnvironment
+    assert(redis.hget("dbots:" + "172.20.0.0", "requests").isDefined)
 
-    val streamToWrite = prepareRDDToWrite(stream)
-
-    writingData(streamToWrite, sparkSession)
-
-    ssc.start
-    ssc.awaitTermination
-    ssc.stop()
-
-    assert(redis.hget("dbots:" + "172.20.0.0", "requests") === Some("30"))
+    main(Array())
 
   }
 

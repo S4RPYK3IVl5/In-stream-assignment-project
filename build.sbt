@@ -16,3 +16,4 @@ libraryDependencies += "com.datastax.spark" %% "spark-cassandra-connector" % "2.
 libraryDependencies += "org.scalaj" %% "scalaj-http" % "2.4.2"
 libraryDependencies += "org.jfarcand" % "wcs" % "1.5"
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.0" % "test"
+libraryDependencies += "org.apache.logging.log4j" % "log4j-core" % "2.13.3"

@@ -47,7 +47,7 @@ class StreamingTestDStream extends AnyFlatSpec{
                |{"unix_time": 1594906469, "category_id": 1000, "ip": "172.20.0.0", "type": "click"},
                |{"unix_time": 1594906470, "category_id": 1007, "ip": "172.20.0.0", "type": "click"},
                |{"unix_time": 1594906470, "category_id": 1009, "ip": "172.20.0.0", "type": "click"},
-               |{"unix_time": 1594906471, "category_id": 1009, "ip": "172.20.0.0", "type": "click"}]""".stripMargin
+               |{"unix_time": 1594917582, "category_id": 1009, "ip": "172.20.0.0", "type": "click"}]""".stripMargin
 
   /*
   * Hint: author of this test understand, that this test represent worst pattern of writing test,
@@ -61,12 +61,25 @@ class StreamingTestDStream extends AnyFlatSpec{
 
     new Thread(new Runnable {
       override def run(): Unit = {
-        Thread.sleep(5000)
         val file = new File("file/data/data.json")
         file.createNewFile()
         val bw = new BufferedWriter(new FileWriter(file))
-        bw.write(data)
-        bw.close()
+        var x = 0
+        @scala.annotation.tailrec
+        def loop(){
+          bw.append(
+            s"""{"unix_time": ${System.currentTimeMillis/1000}, "category_id": 1009, "ip": "172.20.0.0", "type": "click"}
+               |{"unix_time": ${System.currentTimeMillis/1000}, "category_id": 1009, "ip": "172.20.0.0", "type": "click"}
+               |{"unix_time": ${System.currentTimeMillis/1000}, "category_id": 1009, "ip": "172.20.0.0", "type": "click"}
+               |{"unix_time": ${System.currentTimeMillis/1000}, "category_id": 1009, "ip": "172.10.0.0", "type": "click"}
+               |""".stripMargin)
+          bw.flush()
+          x = x + 1
+          if (x == 20) return
+          Thread.sleep(1000)
+          loop()
+        }
+        loop()
       }
     }).start()
 
@@ -96,12 +109,25 @@ class StreamingTestDStream extends AnyFlatSpec{
 
     new Thread(new Runnable {
       override def run(): Unit = {
-        Thread.sleep(5000)
         val file = new File("file/data/data.json")
         file.createNewFile()
         val bw = new BufferedWriter(new FileWriter(file))
-        bw.write(data)
-        bw.close()
+        var x = 0
+        @scala.annotation.tailrec
+        def loop(){
+          bw.append(
+            s"""{"unix_time": ${System.currentTimeMillis/1000}, "category_id": 1009, "ip": "172.20.0.0", "type": "click"}
+               |{"unix_time": ${System.currentTimeMillis/1000}, "category_id": 1009, "ip": "172.20.0.0", "type": "click"}
+               |{"unix_time": ${System.currentTimeMillis/1000}, "category_id": 1009, "ip": "172.20.0.0", "type": "click"}
+               |{"unix_time": ${System.currentTimeMillis/1000}, "category_id": 1009, "ip": "172.10.0.0", "type": "click"}
+               |""".stripMargin)
+          bw.flush()
+          x = x + 1
+          if (x == 20) return
+          Thread.sleep(1000)
+          loop()
+        }
+        loop()
       }
     }).start()
 

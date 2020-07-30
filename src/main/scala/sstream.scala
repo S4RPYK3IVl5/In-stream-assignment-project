@@ -21,7 +21,6 @@ object sstream {
   def main(args: Array[String]): Unit = {
 
     val (sparkSession: SparkSession, dfStream: DataFrame) = createSparkEnvironment
-    import sparkSession.implicits._
 
     val valueDs = convertDataToEventsDS(dfStream, sparkSession: SparkSession)
 
@@ -124,7 +123,7 @@ object sstream {
           .option("key.column", "ip")
           .load().toDF("rIp", "rEvent_sum", "rIndicator", "rCount_of_window", "rAdded_time")
 
-        val botsDf = ds.filter($"indicator" >= 20.0)
+        val botsDf = ds.filter($"indicator" >= 20)
           .withColumn("added_time", current_timestamp().cast(LongType))
 
         val joinedDf = cachedBots.join(botsDf, $"rIp" === $"ip", "left")
@@ -147,8 +146,7 @@ object sstream {
   private def calculateBot(readScvFiles: DataFrame, sparkSession: SparkSession) = {
     import sparkSession.implicits._
     val ipWithIndicator = readScvFiles.groupBy($"ip")
-      .agg(sum($"count").as("event_sum"), count($"ip").as("count_of_window"))
-      .withColumn("indicator", $"event_sum" / $"count_of_window")
+      .agg(max($"count").as("indicator"))
     ipWithIndicator
   }
 
@@ -169,7 +167,7 @@ object sstream {
   private def saveWindowedDataAsCSV(valueDs: Dataset[Events], sparkSession: SparkSession) = {
     import sparkSession.implicits._
     val actionPerIp = valueDs.withWatermark("unix_time", "20 seconds")
-      .groupBy(window($"unix_time", "10 seconds", "10 seconds"), $"ip")
+      .groupBy(window($"unix_time", "10 seconds", "5 seconds"), $"ip")
       .count()
 
     actionPerIp.select(

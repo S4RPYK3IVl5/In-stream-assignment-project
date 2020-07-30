@@ -12,10 +12,6 @@ import utils._
 object sstream {
 
   val localhost = "127.0.0.1"
-  val pathToCSTFilesIntermediateCheckpoint = "/Users/asaprykin/Documents/lpProjects/In-stream-assignment-project/file/checkpoint-location/intermediate"
-  val pathToCSTFilesIntermediate = "/Users/asaprykin/Documents/lpProjects/In-stream-assignment-project/file/spark-output/intermediate"
-  val pathToCSTFilesGroupedCheckpoint = "/Users/asaprykin/Documents/lpProjects/In-stream-assignment-project/file/checkpoint-location/grouped"
-  val pathToCSTFilesGrouped = "/Users/asaprykin/Documents/lpProjects/In-stream-assignment-project/file/spark-output/grouped"
   val redis = new RedisClient(localhost, 6379)
 
   def main(args: Array[String]): Unit = {
@@ -63,7 +59,11 @@ object sstream {
 
   }
 
-  private def writeToCassandra(valueDs: Dataset[Events], sparkSession: SparkSession) = {
+  def closeStreaming(sparkSession: SparkSession): Unit = {
+    sparkSession.streams.active.foreach(_.stop())
+  }
+
+  def writeToCassandra(valueDs: Dataset[Events], sparkSession: SparkSession) = {
     import sparkSession.implicits._
     valueDs.writeStream
       .outputMode(OutputMode.Update)
@@ -98,7 +98,7 @@ object sstream {
       }).start
   }
 
-  private def writeToRedis(windowedDf: DataFrame, sparkSession: SparkSession) = {
+  def writeToRedis(windowedDf: DataFrame, sparkSession: SparkSession) = {
     import sparkSession.implicits._
     windowedDf.writeStream
       .outputMode(OutputMode.Update)
@@ -141,7 +141,7 @@ object sstream {
       }).start
   }
 
-  private def windowData(valueDs: Dataset[Events], sparkSession: SparkSession) = {
+  def windowData(valueDs: Dataset[Events], sparkSession: SparkSession) = {
     import sparkSession.implicits._
     val actionPerIp = valueDs.withWatermark("unix_time", "20 seconds")
       .groupBy(window($"unix_time", "10 seconds", "5 seconds"), $"ip")
@@ -149,7 +149,7 @@ object sstream {
     actionPerIp
   }
 
-  private def convertDataToEventsDS(dfStream: DataFrame, sparkSession: SparkSession) = {
+  def convertDataToEventsDS(dfStream: DataFrame, sparkSession: SparkSession) = {
     import sparkSession.implicits._
     val valueDs = dfStream.selectExpr("CAST(value AS STRING) as value")
       .map {
@@ -163,7 +163,7 @@ object sstream {
     valueDs
   }
 
-  private def createSparkEnvironment = {
+  def createSparkEnvironment = {
     val sparkSession = SparkSession.builder()
       .master("local[*]")
       .appName("bot-detection")

@@ -24,11 +24,8 @@ object sstream {
 
     val valueDs = convertDataToEventsDS(dfStream, sparkSession: SparkSession)
 
-    saveWindowedDataAsCSV(valueDs, sparkSession)
+    val windowedDf = windowData(valueDs, sparkSession)
 
-    val readScvFiles: DataFrame = readDataFromCSVFiles(sparkSession)
-
-    val ipWithIndicator: DataFrame = calculateBot(readScvFiles, sparkSession)
 
 //    val iipWithIndicator = ipWithIndicator.withColumnRenamed("ip", "iip")
 //        .withColumn("water_time", current_timestamp())
@@ -58,7 +55,7 @@ object sstream {
 //          .save()
 //        ).start()
 
-    writeToRedis(ipWithIndicator, sparkSession)
+    writeToRedis(windowedDf, sparkSession)
 
     writeToCassandra(valueDs, sparkSession)
 
@@ -101,9 +98,9 @@ object sstream {
       }).start
   }
 
-  private def writeToRedis(ipWithIndicator: DataFrame, sparkSession: SparkSession) = {
+  private def writeToRedis(windowedDf: DataFrame, sparkSession: SparkSession) = {
     import sparkSession.implicits._
-    ipWithIndicator.writeStream
+    windowedDf.writeStream
       .outputMode(OutputMode.Update)
       .trigger(ProcessingTime("5 seconds"))
       .foreachBatch((ds, _) => {
@@ -123,8 +120,9 @@ object sstream {
           .option("key.column", "ip")
           .load().toDF("rIp", "rEvent_sum", "rIndicator", "rCount_of_window", "rAdded_time")
 
-        val botsDf = ds.filter($"indicator" >= 20)
+        val botsDf = ds.filter($"count" >= 20)
           .withColumn("added_time", current_timestamp().cast(LongType))
+          .dropDuplicates(Seq("ip"))
 
         val joinedDf = cachedBots.join(botsDf, $"rIp" === $"ip", "left")
 
@@ -143,45 +141,12 @@ object sstream {
       }).start
   }
 
-  private def calculateBot(readScvFiles: DataFrame, sparkSession: SparkSession) = {
-    import sparkSession.implicits._
-    val ipWithIndicator = readScvFiles.groupBy($"ip")
-      .agg(max($"count").as("indicator"))
-    ipWithIndicator
-  }
-
-  private def readDataFromCSVFiles(sparkSession: SparkSession) = {
-    val eventCSVSchema = new StructType()
-      .add("wFrom", "timestamp")
-      .add("wTo", "timestamp")
-      .add("ip", "string")
-      .add("count", "integer")
-    val readScvFiles = sparkSession
-      .readStream
-      .option("sep", ",")
-      .schema(eventCSVSchema)
-      .csv(pathToCSTFilesIntermediate)
-    readScvFiles
-  }
-
-  private def saveWindowedDataAsCSV(valueDs: Dataset[Events], sparkSession: SparkSession) = {
+  private def windowData(valueDs: Dataset[Events], sparkSession: SparkSession) = {
     import sparkSession.implicits._
     val actionPerIp = valueDs.withWatermark("unix_time", "20 seconds")
       .groupBy(window($"unix_time", "10 seconds", "5 seconds"), $"ip")
       .count()
-
-    actionPerIp.select(
-      "window.start",
-      "window.end",
-      "ip",
-      "count"
-    ).writeStream
-      .outputMode(OutputMode.Append)
-      .trigger(ProcessingTime("5 second"))
-      .format("csv")
-      .option("path", pathToCSTFilesIntermediate)
-      .option("checkpointLocation", pathToCSTFilesIntermediateCheckpoint)
-      .start
+    actionPerIp
   }
 
   private def convertDataToEventsDS(dfStream: DataFrame, sparkSession: SparkSession) = {

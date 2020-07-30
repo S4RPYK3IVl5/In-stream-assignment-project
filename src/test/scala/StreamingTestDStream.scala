@@ -45,7 +45,7 @@ class StreamingTestDStream extends AnyFlatSpec{
         Thread.sleep(20000)
         closeStreaming(ssc)
 
-        // Ensure the bot cached in redis
+        // Ensure that bot cached in Redis
         assert(redis.hget("dbots:" + "172.20.0.0", "requests").isDefined)
 
         val session = new CqlSessionBuilder().build()

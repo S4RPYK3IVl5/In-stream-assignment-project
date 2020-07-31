@@ -8,7 +8,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.streaming.dstream.InputDStream
+import org.apache.spark.streaming.dstream.{DStream, InputDStream, MapWithStateDStream}
 import org.apache.spark.streaming.kafka010.ConsumerStrategies.Subscribe
 import org.apache.spark.streaming.kafka010.KafkaUtils
 import org.apache.spark.streaming.kafka010.LocationStrategies.PreferConsistent
@@ -26,7 +26,9 @@ object dstream {
 
     val (ssc, stream, sparkSession) = crateSparkEnvironment
 
-    computingData(stream, sparkSession)
+    val eventsStream = takeValueFromKafkaRecord(stream)
+    val toWriteData = calculatingEvents(eventsStream)
+    writingBots(toWriteData, sparkSession)
 
     ssc.start
     ssc.awaitTermination
@@ -37,7 +39,11 @@ object dstream {
     ssc.stop(true, true)
   }
 
-  def computingData(stream: InputDStream[ConsumerRecord[String, String]], sparkSession: SparkSession) = {
+  def takeValueFromKafkaRecord(stream: InputDStream[ConsumerRecord[String, String]]) = {
+    stream.map(_.value)
+  }
+
+  def calculatingEvents(stream: DStream[String]) = {
     def accumulateMappingFunction(key: (Timestamp, Timestamp, String),
                                   value: Option[(Events, Int)],
                                   state: State[Int]): ((Timestamp, Timestamp, String), (Events, Int)) = {
@@ -48,13 +54,16 @@ object dstream {
     }
 
     stream
-      .map(_.value)
       .map(x => parseString(x))
       .filter(_.nonEmpty)
       .map(a =>
         (createTriple(a(0).toDouble, a(2)),
           (Events(new Timestamp(a(0).toLong * 1000), a(1).toInt, a(2), a(3)), 1)))
       .mapWithState(StateSpec.function(accumulateMappingFunction _))
+  }
+
+  def writingBots(stream: MapWithStateDStream[(Timestamp, Timestamp, String), (Events, Int), Int, ((Timestamp, Timestamp, String), (Events, Int))], sparkSession: SparkSession) = {
+    stream
       .foreachRDD(rdd => {
 
         rdd.reduceByKey((x, y) => if (x._2 > y._2) x else y)

@@ -1,14 +1,9 @@
-import dstream._
-import org.apache.spark.SparkConf
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SparkSession
-import org.apache.spark.streaming.dstream.InputDStream
-import org.apache.spark.streaming.{Seconds, StreamingContext}
+import org.apache.spark.sql.types.{StringType, StructField, StructType}
+import org.apache.spark.sql.{Row, SparkSession}
 import org.scalatest.flatspec.AnyFlatSpec
+import sstream._
 
-import scala.collection.mutable
-
-class BotDetectingDStreamTest extends AnyFlatSpec {
+class BotDetectingSStreamTest extends AnyFlatSpec {
 
   // bot have ip 172.20.X.X
   val strData: String =
@@ -54,32 +49,23 @@ class BotDetectingDStreamTest extends AnyFlatSpec {
       |{"unix_time": 1596118439, "category_id": 1009, "ip": "172.10.0.0", "type": "click"}""".stripMargin
   val listData: Array[String] = strData.split("\n")
 
-
   "A bot" should "be determined" in {
 
-    val conf = new SparkConf()
-      .setMaster("local[*]")
-      .setAppName("DStream test")
-
-    val ssc = new StreamingContext(conf, Seconds(1))
-    ssc.checkpoint("/Users/asaprykin/Documents/lpProjects/In-stream-assignment-project/file/checkpoint-location/dstream-test")
-
     val sparkSession = SparkSession.builder()
-      .config(ssc.sparkContext.getConf)
+      .master("local[*]")
+      .appName("bot-detection")
       .getOrCreate()
 
-    val sc = sparkSession.sparkContext
+    val rdd = sparkSession.sparkContext.parallelize(listData)
+    val rowRdd = rdd.map(v => Row(v))
+    val df = sparkSession.createDataFrame(rowRdd, StructType(StructField("value", StringType, true)::Nil))
 
-    val inputData: mutable.Queue[RDD[String]] = mutable.Queue()
-    val inputStream: InputDStream[String] = ssc.queueStream(inputData)
-    inputData += sc.makeRDD(listData)
+    val valueDs = convertDataToEventsDS(df, sparkSession: SparkSession)
+    val windowedDf = windowData(valueDs, sparkSession)
 
-    val eventsStream = calculatingEvents(inputStream)
-    eventsStream.map(_._2).foreachRDD(rdd => {
-      val arrTupleOfIds = rdd.collect().partition(_._1.ip == "172.20.0.0")
-      assert(arrTupleOfIds._1.forall(_._2 > 20))
-      assert(arrTupleOfIds._2.forall(_._2 < 20))
-    })
+    val arrTupleOfIds = windowedDf.collect().partition(_.getAs[String]("ip") == "172.20.0.0")
+    assert(arrTupleOfIds._1.forall(_.getAs[Long]("count") > 20))
+    assert(arrTupleOfIds._2.forall(_.getAs[Long]("count") < 20))
 
   }
 

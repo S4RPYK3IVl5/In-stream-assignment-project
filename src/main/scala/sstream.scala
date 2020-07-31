@@ -22,35 +22,6 @@ object sstream {
 
     val windowedDf = windowData(valueDs, sparkSession)
 
-
-//    val iipWithIndicator = ipWithIndicator.withColumnRenamed("ip", "iip")
-//        .withColumn("water_time", current_timestamp())
-//        .withWatermark("water_time", "20 seconds")
-//
-//    // Writing to Cassandra // DOES NOT WORK, BUT HAVE TO BE PRESENTED
-//    valueDs
-//      .withWatermark("unix_time", "20 seconds")
-//      .join(iipWithIndicator, valueDs("ip") === iipWithIndicator("iip"), "inner")
-////      .join(iipWithIndicator, expr(
-////        s"""
-////          |ip = iip AND
-////          |water_time + interval 20 seconds > ${current_timestamp()} AND
-////          |unix_time + interval 20 seconds > ${current_timestamp()}
-////          |""".stripMargin), "inner")
-//      .withColumn("is_bot", $"event_sum" >= 20.0)
-//      .select($"ip", $"category_id", $"unix_time", $"type", $"is_bot")
-//      .writeStream
-//      .outputMode(OutputMode.Append)
-//      .trigger(ProcessingTime("5 seconds"))
-//      .foreachBatch((ds, _) =>
-//        ds.write
-//          .format("org.apache.spark.sql.cassandra")
-//          .option("keyspace", "event_click")
-//          .option("table", "events")
-//          .mode("APPEND")
-//          .save()
-//        ).start()
-
     writeToRedis(windowedDf, sparkSession)
 
     writeToCassandra(valueDs, sparkSession)
@@ -144,7 +115,7 @@ object sstream {
   def windowData(valueDs: Dataset[Events], sparkSession: SparkSession) = {
     import sparkSession.implicits._
     val actionPerIp = valueDs.withWatermark("unix_time", "20 seconds")
-      .groupBy(window($"unix_time", "10 seconds", "5 seconds"), $"ip")
+      .groupBy(window($"unix_time", "10 seconds", "10 seconds"), $"ip")
       .count()
     actionPerIp
   }
